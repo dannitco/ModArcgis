@@ -1,0 +1,46 @@
+{
+    "apiVersion": "1.0",
+    "version": "1.0",
+    "name": "Arcgis demo",
+    "id": "spotfire-mod-arcgis-satellites",
+    "icon": "icon.svg",
+    "properties": [],
+    "dataViewDefinition": {
+        "axes": [
+            {
+                "name": "Name",
+                "mode": "categorical"
+            },
+            {
+                "name": "Line 1",
+                "mode": "continuous",
+                "dataTypes": { "allowNumeric": false, "allowString": true },
+                "allowNonAggregatingMeasures": true
+            },
+           { "name": "period",
+                "mode": "continuous",
+                "allowNonAggregatingMeasures":true
+           },
+            {
+                "name": "Line 2",
+                "mode": "continuous",
+                "dataTypes": { "allowNumeric": false, "allowString": true },
+                "allowNonAggregatingMeasures": true
+            }
+        ]
+    },
+    "files": ["index.html"],
+    "externalResources": [
+        "https://developers.arcgis.com",
+        "https://mtags.arcgis.com/",
+        "https://js.arcgis.com",
+        "https://services.arcgisonline.com",
+        "https://i.ibb.co",
+        "https://elevation3d.arcgis.com/",
+        "https://server.arcgisonline.com",
+        "https://services.arcgisonline.com",
+        "https://cdn.arcgis.com/",
+        "https://static.arcgis.com/",
+        "https://basemaps.arcgis.com/"
+    ]
+}

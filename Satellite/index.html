@@ -1,0 +1,275 @@
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <title>Satellites in 3D view | Sample | ArcGIS API for JavaScript 4.21</title>
+
+    <style>
+        html,
+        body,
+        #viewDiv {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+
+    <link rel="stylesheet" href="https://js.arcgis.com/4.21/esri/themes/light/main.css" />
+    <script src="https://js.arcgis.com/4.21/"></script>
+    <script src="https://developers.arcgis.com/javascript/latest/sample-code/satellites-3d/live/satellite.js"></script>
+    <script
+        id="spotfire-loader">var Spotfire = function (e) { "use strict"; return e.initialize = function (e) { var t = "sfTemp" + 1e4 * Math.random() + "Cb", r = window; r[t] = e; var a = { subject: "GetUrl", callbackId: -1, options: { cbId: t } }; r.addEventListener("message", (function e(t) { if (t.source !== r.parent || !t.data.src) return; r.removeEventListener("message", e); var a = document, n = a.createElement("script"); n.src = t.data.src, (a.head || a.body).appendChild(n) })), r.parent.postMessage(a, "*") }, e }({});</script>
+
+    <script>
+        require([
+            "esri/Map",
+            "esri/views/SceneView",
+            "esri/layers/GraphicsLayer",
+            "esri/Graphic",
+            "dojo/text!https://developers.arcgis.com/javascript/latest/sample-code/satellites-3d/live/brightest.txt"
+        ], (Map, SceneView, GraphicsLayer, Graphic, notUsedStaticData) => {
+            async function onInit(mod) {
+                var reader = mod.createReader(mod.visualization.data());
+                reader.subscribe(render);
+            }
+
+            let currentDataView;
+
+            setInterval(refresh, 1000000);
+            async function render(dataView) {
+                satelliteTracks.removeAll();
+                currentDataView = dataView;
+                refresh();
+            }
+
+            async function refresh() {
+                if (!currentDataView) {
+                    return;
+                }
+
+                satelliteLayer.removeAll();
+                let rows = await currentDataView.allRows();
+
+                for (const row of rows) {
+                    let commonName = row.categorical("Name").formattedValue();
+                    let line1 = row.continuous("Line 1").value();
+                    let line2 = row.continuous("Line 2").value();
+                    let period4 = row.continuous("period").value();
+                    let time = Date.now();
+
+                    /*************************************************
+                     * Create attributes for the International
+                     * designator and Norad identifier. See the
+                     * doc for details.
+                     * https://www.space-track.org/documentation#/tle
+                     *************************************************/
+
+                    const designator = line1.substring(9, 16);
+                    const launchYear = designator.substring(0, 2);
+                    const fullLaunchYear = Number(launchYear) >= 57 ? `19${launchYear}` : `20${launchYear}`;
+                    const launchNum = Number(designator.substring(2, 5)).toString();
+                    const noradId = Number(line1.substring(3, 7));
+                    //const parsePeriod = Number(line2.substring(53, 63));
+                    //const period2 = (2 * Math.PI) / ((parsePeriod) * ((2 * Math.PI) / 1400));
+                    let satelliteLoc = null;
+
+                    try {
+                        satelliteLoc = getSatelliteLocation(new Date(time), line1, line2);
+                    } catch (error) { }
+
+                    if (satelliteLoc !== null) {
+                        let template = {
+                            // autocasts as new PopupTemplate()
+                            title: "{name}",
+                            content: "Launch number {number} of {year}",
+                            actions: [
+                                {
+                                    // Create a popup action to display the satellite track.
+                                    title: "Show Satellite Track",
+                                    id: "track",
+                                    className: "esri-icon-globe"
+                                }
+                            ]
+                        };
+
+                        let graphic = new Graphic({
+                            geometry: satelliteLoc,
+                            symbol: {
+                                type: "simple-marker", // autocasts as new PictureMarkerSymbol()
+                                //url: "https://i.ibb.co/0y1d3Zk/Sat-PNG.png",
+                                //width: 10,
+                                //height: 10,
+                                //type: "simple-marker",
+                                size: 3,
+                                color: [92, 244, 57, 0.25],
+                                outline: {
+                                    //autocasts as new SimpleLineSymbol()
+                                    color: [92, 244, 57, 0.25],
+                                    width: 3
+
+                                },
+                            },
+                                attributes: {
+                                    name: commonName,
+                                    year: fullLaunchYear,
+                                    id: noradId,
+                                    number: launchNum,
+                                    time: time,
+                                    line1: line1,
+                                    line2: line2,
+                                    period: period4,
+
+                                },
+                                popupTemplate: template
+                            
+                        });
+
+                        satelliteLayer.add(graphic);
+                    }
+                }
+            }
+
+            Spotfire.initialize(onInit);
+
+            const map = new Map({
+                basemap: "dark-gray-vector"
+            });
+
+            const view = new SceneView({
+                container: "viewDiv",
+                map: map,
+                constraints: {
+                    altitude: {
+                        max: 12000000000 // meters
+                    }
+                },
+                // force the popup to the docked position
+                // for each selected feature
+                popup: {
+                    dockEnabled: true,
+                    dockOptions: {
+                        breakpoint: false
+                    }
+                }
+            });
+
+            view.popup.watch("selectedFeature", () => {
+                satelliteTracks.removeAll();
+            });
+
+            view.popup.on("trigger-action", (event) => {
+                if (event.action.id === "track") {
+                    satelliteTracks.removeAll();
+
+                    let graphic = view.popup.selectedFeature;
+                    let trackFeatures = [];
+                    let period1 = graphic.attributes.period ? graphic.attributes.period : 60 * 24;
+                    //let period4 =  row.continuous("period").value();
+                    for (let i = 0; i < period1; i++) {
+                        let loc = null;
+                        try {
+                            loc = getSatelliteLocation(
+                                new Date(graphic.attributes.time + i * 1000 * 60),
+                                graphic.attributes.line1,
+                                graphic.attributes.line2,
+                            );
+                        } catch (error) { }
+
+                        if (loc !== null) {
+                            trackFeatures.push([loc.x, loc.y, loc.z]);
+                        }
+                    }
+
+                    //console.log(trackFeatures)
+
+                    let track = new Graphic({
+                        geometry: {
+                            type: "polyline", // autocasts as new Polyline()
+                            paths: [trackFeatures]
+                        },
+                        symbol: {
+                            type: "line-3d", // autocasts as new LineSymbol3D()
+                            symbolLayers: [
+                                {
+                                    type: "line", // autocasts as new LineSymbol3DLayer()
+                                    material: {
+                                        color: [192, 192, 192, 0.5]
+                                    },
+                                    size: 3
+                                }
+                            ]
+                        }
+                    });
+
+                    satelliteTracks.add(track);
+                }
+            });
+
+            const satelliteLayer = new GraphicsLayer();
+            const satelliteTracks = new GraphicsLayer();
+
+            map.addMany([satelliteLayer, satelliteTracks]);
+
+            function getSatelliteLocation(date, line1, line2) {
+                /****************************************************
+                 * satellite-js is a library that includes a set of
+                 * functions to convert TLE to geographic locations
+                 * We use this to get the geographic location of the
+                 * satellites for the current date. For more details
+                 * on satellite-js visib the github repo
+                 * https://github.com/shashwatak/satellite-js
+                 ****************************************************/
+                const satrec = satellite.twoline2satrec(line1, line2);
+                const position_and_velocity = satellite.propagate(
+                    satrec,
+                    date.getUTCFullYear(),
+                    date.getUTCMonth() + 1,
+                    date.getUTCDate(),
+                    date.getUTCHours(),
+                    date.getUTCMinutes(),
+                    date.getUTCSeconds()
+                );
+                const position_eci = position_and_velocity.position;
+
+                const gmst = satellite.gstime_from_date(
+                    date.getUTCFullYear(),
+                    date.getUTCMonth() + 1,
+                    date.getUTCDate(),
+                    date.getUTCHours(),
+                    date.getUTCMinutes(),
+                    date.getUTCSeconds()
+                );
+
+                const position_gd = satellite.eci_to_geodetic(position_eci, gmst);
+
+                let longitude = position_gd.longitude;
+                let latitude = position_gd.latitude;
+                let height = position_gd.height;
+                if (isNaN(longitude) || isNaN(latitude) || isNaN(height)) {
+                    return null;
+                }
+                const rad2deg = 180 / Math.PI;
+                while (longitude < -Math.PI) {
+                    longitude += 2 * Math.PI;
+                }
+                while (longitude > Math.PI) {
+                    longitude -= 2 * Math.PI;
+                }
+                return {
+                    type: "point", // Autocasts as new Point()
+                    x: rad2deg * longitude,
+                    y: rad2deg * latitude,
+                    z: height * 1000
+                };
+            }
+        });
+    </script>
+</head>
+
+<body>
+    <div id="viewDiv"></div>
+</body>
+
+</html>
