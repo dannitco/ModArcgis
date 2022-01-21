@@ -1,0 +1,170 @@
+<html>
+​
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <title>Satellites in 3D view | Sample | ArcGIS API for JavaScript 4.21</title>
+    ​
+    <style>
+        html,
+        body,
+        #viewDiv {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+    ​
+    <link rel="stylesheet" href="https://js.arcgis.com/4.21/esri/themes/light/main.css" />
+    <script src="https://js.arcgis.com/4.21/"></script>
+    <script src="https://developers.arcgis.com/javascript/latest/sample-code/satellites-3d/live/satellite.js"></script>
+    <script
+        id="spotfire-loader">var Spotfire = function (e) { "use strict"; return e.initialize = function (e) { var t = "sfTemp" + 1e4 * Math.random() + "Cb", r = window; r[t] = e; var a = { subject: "GetUrl", callbackId: -1, options: { cbId: t } }; r.addEventListener("message", (function e(t) { if (t.source !== r.parent || !t.data.src) return; r.removeEventListener("message", e); var a = document, n = a.createElement("script"); n.src = t.data.src, (a.head || a.body).appendChild(n) })), r.parent.postMessage(a, "*") }, e }({});</script>
+    ​
+    <script>
+        require([
+            "esri/Map",
+            "esri/views/MapView",
+            "esri/layers/VectorTileLayer",
+            "esri/layers/GraphicsLayer",
+            "esri/layers/FeatureLayer",
+            "esri/Graphic",
+            "esri/geometry/Point"
+        ], (Map, MapView, VectorTileLayer, GraphicsLayer, FeatureLayer, Graphic, Point) => {
+            async function onInit(mod) {
+                var reader = mod.createReader(mod.visualization.data());
+                reader.subscribe(render);
+            }
+
+            const map = new Map({
+                //basemap: "dark-gray-vector"
+                //dont want this basemap cuz the lables conflict with the vector tile layer labels
+            });
+            
+            Spotfire.initialize(onInit);
+
+            async function render(dataView) {
+    
+                let rows = await dataView.allRows();
+
+
+                let allGraphics = [];
+
+                let points = [];
+
+                const markerSymbol = {
+                    type: "simple-marker", // autocasts as new SimpleMarkerSymbol()
+                    outline: { style: "short-dash", width: .5, color: [249, 54, 221, 0.96] },
+                    size: 4
+
+                };
+
+                rows.map(row => {
+                    let g = {
+                        geometry: {
+                            type: "point",
+                            latitude: row.continuous("Lat").value(),
+                            longitude: row.continuous("Long").value()
+                        },
+                        attributes: {
+                            url: "none",
+                            name: row.categorical("Name").formattedValue()
+                        }
+                    };
+
+                    allGraphics.push(g);
+
+                });
+                //const labeltext = allGraphics.attributes.name
+
+                // const labelClass = {
+                //     // autocasts as new LabelClass()
+                //     symbol: {
+                //         type: "text", // autocasts as new TextSymbol()
+                //         color: "green",
+                //         font: {
+                //             // autocast as new Font()
+                //             family: "Playfair Display",
+                //             size: 10,
+                //             weight: "bold"
+                //         }
+                //     },
+                //     labelPlacement: "above-center",
+                //     labelExpressionInfo: {
+                //         expression: "{$feature.name}"
+                //     }
+                // };
+
+                const layer = new FeatureLayer({
+                    source: allGraphics,  // array of graphics objects
+                    objectIdField: "name",
+                    fields: [{
+                        name: "name",
+                        type: "oid"
+                    }],
+                    //labelingInfo: [labelClass],
+                    renderer: {  // overrides the layer's default renderer
+                        type: "simple",
+                        symbol: markerSymbol
+                    }
+                });
+                map.add(layer);
+            }
+
+            const view = new MapView({
+                map: map,
+                center: [-98.5795, 39.8282], //Longitude, latitude
+                zoom: 3,
+                container: "viewDiv"
+            });
+
+
+            const tileLayer = new VectorTileLayer({
+                url: "https://jsapi.maps.arcgis.com/sharing/rest/content/items/75f4dfdff19e445395653121a95a85db/resources/styles/root.json"
+            });
+            view.map.add(tileLayer);
+
+
+            const graphicsLayer = new GraphicsLayer();
+
+
+            const point = {
+                type: "point", // autocasts as new Point()
+                latitude: 1.1,
+                longitude: 1.1,
+            };
+
+            const markerSymbol = {
+                type: "simple-marker", // autocasts as new SimpleMarkerSymbol()
+                color: [226, 119, 40],
+                outline: {
+                    // autocasts as new SimpleLineSymbol()
+                    color: [255, 255, 255],
+                    width: 2
+                }
+            };
+
+            const pointGraphic = new Graphic({
+                geometry: point,
+                symbol: markerSymbol
+            });
+
+            graphicsLayer.add(pointGraphic);
+
+
+
+        });
+
+
+    </script>
+</head>
+​
+
+<body>
+    <div id="viewDiv"></div>
+</body>
+​
+
+</html>
